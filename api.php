@@ -2,7 +2,7 @@
 header('Content-Type: application/json');
 header('Access-Control-Allow-Origin: *');
 
-// For this no-database version, we'll store data in a JSON file
+// For Vercel deployment, we'll use a JSON file for storage
 $data_file = __DIR__ . '/leads.json';
 
 // Initialize data file if it doesn't exist
@@ -25,8 +25,11 @@ if ($action === 'get_leads') {
     // Calculate today's leads (last 24 hours)
     $twenty_four_hours_ago = date('Y-m-d H:i:s', strtotime('-24 hours'));
     $today_leads = array_filter($approved_leads, function($lead) use ($twenty_four_hours_ago) {
-        return $lead['datetime'] >= $twenty_four_hours_ago;
+        return ($lead['datetime'] ?? '') >= $twenty_four_hours_ago;
     });
+    
+    // Get recent leads (last 50)
+    $recent_leads = array_slice(array_reverse($approved_leads), 0, 50);
     
     // Prepare response
     echo json_encode([
@@ -34,7 +37,7 @@ if ($action === 'get_leads') {
         'data' => [
             'total_leads' => count($approved_leads),
             'today_leads' => count($today_leads),
-            'recent_leads' => array_slice(array_reverse($approved_leads), 0, 50)
+            'recent_leads' => $recent_leads
         ]
     ]);
 }
@@ -69,20 +72,27 @@ elseif ($action === 'postback') {
         'datetime' => $_GET['datetime'],
         'country' => $_GET['geo'],
         'status' => 'approved',
-        'ip' => $_SERVER['REMOTE_ADDR'] ?? ''
+        'ip' => $_SERVER['REMOTE_ADDR'] ?? '',
+        'timestamp' => time()
     ];
     
     // Save back to file
     if (file_put_contents($data_file, json_encode($leads))) {
         echo json_encode([
             'status' => 'success',
-            'message' => 'Lead recorded successfully'
+            'message' => 'Lead recorded successfully',
+            'lead_data' => [
+                'offer_id' => $_GET['offer_id'],
+                'offer_name' => $_GET['offer_name'],
+                'datetime' => $_GET['datetime'],
+                'country' => $_GET['geo']
+            ]
         ]);
     } else {
         http_response_code(500);
         echo json_encode([
             'status' => 'error',
-            'message' => 'Failed to save lead'
+            'message' => 'Failed to save lead to file'
         ]);
     }
 }
