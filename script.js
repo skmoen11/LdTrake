@@ -15,41 +15,32 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 });
 
-// Mock data storage (replaces database)
-let mockLeads = [];
-
 function fetchLeadsData() {
-    // In a real implementation, this would fetch from your API
-    // For this no-database version, we'll use the mock data
-    
-    // Calculate counts
-    const now = new Date();
-    const twentyFourHoursAgo = new Date(now.getTime() - (24 * 60 * 60 * 1000));
-    
-    const totalLeads = mockLeads.filter(lead => lead.status === 'approved').length;
-    const todayLeads = mockLeads.filter(lead => {
-        const leadDate = new Date(lead.datetime);
-        return lead.status === 'approved' && leadDate >= twentyFourHoursAgo;
-    }).length;
-    
-    // Get recent leads (last 50 approved)
-    const recentLeads = mockLeads
-        .filter(lead => lead.status === 'approved')
-        .sort((a, b) => new Date(b.datetime) - new Date(a.datetime))
-        .slice(0, 50);
-    
-    // Update the UI
-    updateDashboard({
-        total_leads: totalLeads,
-        today_leads: todayLeads,
-        recent_leads: recentLeads
-    });
+    fetch('https://ld-trake.vercel.app/api.php?action=get_leads')
+        .then(response => {
+            if (!response.ok) {
+                throw new Error('Network response was not ok');
+            }
+            return response.json();
+        })
+        .then(data => {
+            if (data.status === 'success') {
+                updateDashboard(data.data);
+            } else {
+                console.error('Error in response:', data.message);
+                showError('Failed to load leads data: ' + (data.message || 'Unknown error'));
+            }
+        })
+        .catch(error => {
+            console.error('Error fetching leads data:', error);
+            showError('Failed to load leads data. Please check your connection and try again.');
+        });
 }
 
 function updateDashboard(data) {
     // Update counters
-    document.getElementById('total-leads').textContent = data.total_leads;
-    document.getElementById('today-leads').textContent = data.today_leads;
+    document.getElementById('total-leads').textContent = data.total_leads.toLocaleString();
+    document.getElementById('today-leads').textContent = data.today_leads.toLocaleString();
     
     // Update last updated time
     const now = new Date();
@@ -110,4 +101,15 @@ function resetRefreshTimer() {
     clearInterval(window.refreshInterval);
     document.getElementById('refresh-countdown').textContent = '10';
     setupAutoRefresh();
+}
+
+function showError(message) {
+    const tableBody = document.getElementById('leads-table-body');
+    tableBody.innerHTML = `
+        <tr>
+            <td colspan="4" class="no-leads" style="color: var(--danger-color);">
+                ${message}
+            </td>
+        </tr>
+    `;
 }
